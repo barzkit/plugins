@@ -1,0 +1,9 @@
+{
+  "name": "barzkit-plugins",
+  "private": true,
+  "scripts": {
+    "build": "cd elizaos && npm run build",
+    "test": "cd elizaos && npm test",
+    "publish:all": "cd elizaos && npm publish --access public"
+  }
+}
