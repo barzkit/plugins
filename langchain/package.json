@@ -1,0 +1,61 @@
+{
+  "name": "@barzkit/langchain",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "BarzKit LangChain tools — give AI agents self-custody wallets with send, swap, lend, freeze, and x402 payments",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "langchain",
+    "ai-agents",
+    "barzkit",
+    "web3",
+    "self-custody",
+    "erc-4337",
+    "smart-accounts",
+    "tools"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/barzkit/plugins",
+    "directory": "langchain"
+  },
+  "dependencies": {
+    "@barzkit/sdk": "^0.1.0"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=0.3.0",
+    "zod": ">=3.0.0"
+  },
+  "devDependencies": {
+    "@langchain/core": "^0.3.0",
+    "@types/node": "^22.13.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0",
+    "zod": "^3.24.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
