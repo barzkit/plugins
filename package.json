@@ -2,8 +2,8 @@
   "name": "barzkit-plugins",
   "private": true,
   "scripts": {
-    "build": "cd elizaos && npm run build && cd ../langchain && npm run build",
-    "test": "cd elizaos && npm test && cd ../langchain && npm test",
+    "build": "cd elizaos && npm run build && cd ../langchain && npm run build && cd ../mcp && npm run build",
+    "test": "cd elizaos && npm test && cd ../langchain && npm test && cd ../mcp && npm test",
     "publish:all": "bash publish.sh"
   }
 }
