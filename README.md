@@ -6,6 +6,7 @@ Official plugins for [@barzkit/sdk](https://github.com/barzkit/sdk).
 |--------|-----|-------------|
 | [elizaos](./elizaos) | [![npm](https://img.shields.io/npm/v/@barzkit/elizaos)](https://www.npmjs.com/package/@barzkit/elizaos) | ElizaOS framework integration — 8 actions, wallet provider, service |
 | [langchain](./langchain) | [![npm](https://img.shields.io/npm/v/@barzkit/langchain)](https://www.npmjs.com/package/@barzkit/langchain) | LangChain StructuredTool integration — 8 tools with zod schemas |
+| [mcp](./mcp) | [![npm](https://img.shields.io/npm/v/@barzkit/mcp)](https://www.npmjs.com/package/@barzkit/mcp) | MCP Server — 9 tools for Claude Desktop, Cursor, Windsurf |
 
 ## Publishing
 
@@ -18,4 +19,5 @@ bash publish.sh
 # Or publish individually
 cd elizaos && npm run build && npm test && npm publish --access public
 cd langchain && npm run build && npm test && npm publish --access public
+cd mcp && npm run build && npm test && npm publish --access public
 ```
