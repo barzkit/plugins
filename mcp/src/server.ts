@@ -9,6 +9,7 @@ import { lendSchema, lendHandler } from './tools/lend.js'
 import { batchTransactionsSchema, batchTransactionsHandler } from './tools/batchTransactions.js'
 import { freezeWalletSchema, freezeWalletHandler, unfreezeWalletSchema, unfreezeWalletHandler } from './tools/freezeWallet.js'
 import { fetchWithPaymentSchema, fetchWithPaymentHandler } from './tools/fetchWithPayment.js'
+import { subscribeWebhookSchema, subscribeWebhookHandler, removeListenersSchema, removeListenersHandler } from './tools/events.js'
 
 /**
  * Create a BarzKit MCP server with all wallet management tools.
@@ -84,6 +85,20 @@ export function createBarzMcpServer(): McpServer {
     'Fetch a URL with automatic x402 payment if the server returns HTTP 402. Handles machine-to-machine payments.',
     fetchWithPaymentSchema,
     fetchWithPaymentHandler(getAgent),
+  )
+
+  server.tool(
+    'subscribe_webhook',
+    'Subscribe to on-chain events (balance changes, incoming transfers, freeze/unfreeze) and forward them as POST to a webhook URL.',
+    subscribeWebhookSchema,
+    subscribeWebhookHandler(getAgent),
+  )
+
+  server.tool(
+    'remove_listeners',
+    'Remove all event listeners and webhooks. Stops chain polling.',
+    removeListenersSchema,
+    removeListenersHandler(getAgent),
   )
 
   return server

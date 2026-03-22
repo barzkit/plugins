@@ -24,6 +24,9 @@ vi.mock('@barzkit/sdk', () => ({
     enableX402: vi.fn(),
     waitForTransaction: vi.fn(),
     isActive: vi.fn().mockResolvedValue(true),
+    on: vi.fn().mockReturnValue(() => {}),
+    onWebhook: vi.fn().mockReturnValue(() => {}),
+    removeAllListeners: vi.fn(),
   }),
 }))
 
@@ -36,6 +39,7 @@ import { lendSchema, lendHandler } from '../src/tools/lend.js'
 import { batchTransactionsSchema, batchTransactionsHandler } from '../src/tools/batchTransactions.js'
 import { freezeWalletSchema, freezeWalletHandler, unfreezeWalletSchema, unfreezeWalletHandler } from '../src/tools/freezeWallet.js'
 import { fetchWithPaymentSchema, fetchWithPaymentHandler } from '../src/tools/fetchWithPayment.js'
+import { subscribeWebhookSchema, subscribeWebhookHandler, removeListenersSchema, removeListenersHandler } from '../src/tools/events.js'
 
 // ── Helper: extract registered tools from McpServer ──
 
@@ -52,10 +56,10 @@ describe('createBarzMcpServer', () => {
     expect(server).toBeDefined()
   })
 
-  it('registers 9 tools', () => {
+  it('registers 11 tools', () => {
     const server = createBarzMcpServer()
     const tools = getRegisteredTools(server)
-    expect(Object.keys(tools).length).toBe(9)
+    expect(Object.keys(tools).length).toBe(11)
   })
 
   it('registers expected tool names', () => {
@@ -72,6 +76,8 @@ describe('createBarzMcpServer', () => {
     expect(names).toContain('freeze_wallet')
     expect(names).toContain('unfreeze_wallet')
     expect(names).toContain('fetch_with_payment')
+    expect(names).toContain('subscribe_webhook')
+    expect(names).toContain('remove_listeners')
   })
 })
 
@@ -130,6 +136,19 @@ describe('tool schemas', () => {
     expect(schema.safeParse({ url: 'not-a-url' }).success).toBe(false)
     expect(schema.safeParse({}).success).toBe(false)
   })
+
+  it('subscribe_webhook requires event and url', () => {
+    const schema = z.object(subscribeWebhookSchema)
+    expect(schema.safeParse({ event: 'incoming', url: 'https://example.com/hook' }).success).toBe(true)
+    expect(schema.safeParse({ event: 'balanceChange', url: 'https://example.com/hook' }).success).toBe(true)
+    expect(schema.safeParse({ event: 'invalid', url: 'https://example.com/hook' }).success).toBe(false)
+    expect(schema.safeParse({ event: 'incoming' }).success).toBe(false)
+    expect(schema.safeParse({}).success).toBe(false)
+  })
+
+  it('remove_listeners accepts empty input', () => {
+    expect(z.object(removeListenersSchema).safeParse({}).success).toBe(true)
+  })
 })
 
 // ── Tool Handlers: no wallet error ──
@@ -184,6 +203,18 @@ describe('tools without wallet return error', () => {
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('No wallet created')
   })
+
+  it('subscribeWebhookHandler', async () => {
+    const result = await subscribeWebhookHandler(noAgent)({ event: 'incoming', url: 'https://example.com/hook' }, {})
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('No wallet created')
+  })
+
+  it('removeListenersHandler', async () => {
+    const result = await removeListenersHandler(noAgent)({}, {})
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('No wallet created')
+  })
 })
 
 // ── Tool Handlers: with wallet ──
@@ -211,6 +242,9 @@ describe('tools with wallet', () => {
       enableX402: vi.fn(),
       waitForTransaction: vi.fn(),
       isActive: vi.fn().mockResolvedValue(true),
+      on: vi.fn().mockReturnValue(() => {}),
+      onWebhook: vi.fn().mockReturnValue(() => {}),
+      removeAllListeners: vi.fn(),
     }
   }
 
@@ -297,6 +331,25 @@ describe('tools with wallet', () => {
     expect(result.content[0].text).toContain('200')
     expect(result.content[0].text).toContain('response body')
     expect(mockAgent.fetchWithPayment).toHaveBeenCalled()
+  })
+
+  it('subscribe_webhook calls agent.onWebhook', async () => {
+    const handler = subscribeWebhookHandler(() => mockAgent as never)
+    const result = await handler({ event: 'incoming', url: 'https://example.com/hook' }, {})
+
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0].text).toContain('Subscribed')
+    expect(result.content[0].text).toContain('incoming')
+    expect(mockAgent.onWebhook).toHaveBeenCalledWith('incoming', 'https://example.com/hook')
+  })
+
+  it('remove_listeners calls agent.removeAllListeners', async () => {
+    const handler = removeListenersHandler(() => mockAgent as never)
+    const result = await handler({}, {})
+
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0].text).toContain('removed')
+    expect(mockAgent.removeAllListeners).toHaveBeenCalled()
   })
 
   it('send_transaction returns error for non-ETH tokens', async () => {
