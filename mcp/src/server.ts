@@ -10,6 +10,9 @@ import { batchTransactionsSchema, batchTransactionsHandler } from './tools/batch
 import { freezeWalletSchema, freezeWalletHandler, unfreezeWalletSchema, unfreezeWalletHandler } from './tools/freezeWallet.js'
 import { fetchWithPaymentSchema, fetchWithPaymentHandler } from './tools/fetchWithPayment.js'
 import { subscribeWebhookSchema, subscribeWebhookHandler, removeListenersSchema, removeListenersHandler } from './tools/events.js'
+import { transactionHistorySchema, transactionHistoryHandler } from './tools/transactionHistory.js'
+import { dryRunSchema, dryRunHandler } from './tools/dryRun.js'
+import { createSessionSchema, createSessionHandler, listSessionsSchema, listSessionsHandler, revokeSessionSchema, revokeSessionHandler } from './tools/sessions.js'
 
 /**
  * Create a BarzKit MCP server with all wallet management tools.
@@ -85,6 +88,41 @@ export function createBarzMcpServer(): McpServer {
     'Fetch a URL with automatic x402 payment if the server returns HTTP 402. Handles machine-to-machine payments.',
     fetchWithPaymentSchema,
     fetchWithPaymentHandler(getAgent),
+  )
+
+  server.tool(
+    'dry_run',
+    'Simulate a transaction without sending it. Returns gas estimate, permission check, and revert detection.',
+    dryRunSchema,
+    dryRunHandler(getAgent),
+  )
+
+  server.tool(
+    'transaction_history',
+    'Fetch the agent wallet transaction history. Returns recent transactions with direction, status, and explorer links.',
+    transactionHistorySchema,
+    transactionHistoryHandler(getAgent),
+  )
+
+  server.tool(
+    'create_session',
+    'Create a temporary session key with scoped permissions and expiration.',
+    createSessionSchema,
+    createSessionHandler(getAgent),
+  )
+
+  server.tool(
+    'list_sessions',
+    'List all session keys (active and expired).',
+    listSessionsSchema,
+    listSessionsHandler(getAgent),
+  )
+
+  server.tool(
+    'revoke_session',
+    'Revoke a session key by ID.',
+    revokeSessionSchema,
+    revokeSessionHandler(getAgent),
   )
 
   server.tool(

@@ -27,6 +27,35 @@ vi.mock('@barzkit/sdk', () => ({
     on: vi.fn().mockReturnValue(() => {}),
     onWebhook: vi.fn().mockReturnValue(() => {}),
     removeAllListeners: vi.fn(),
+    getTransactions: vi.fn().mockResolvedValue([{
+      hash: '0xtx1',
+      from: '0x1234567890abcdef1234567890abcdef12345678',
+      to: '0xrecipient',
+      value: 1000000000000000000n,
+      timestamp: 1700000000,
+      blockNumber: 12345n,
+      status: 'success',
+      direction: 'outgoing',
+      explorerUrl: 'https://sepolia.etherscan.io/tx/0xtx1',
+    }]),
+    dryRun: vi.fn().mockResolvedValue({
+      success: true,
+      gasEstimate: 100000n,
+      gasCostETH: '0.0001 ETH',
+      permissionCheck: { passed: true, violations: [] },
+    }),
+    createSession: vi.fn().mockReturnValue({
+      id: 'test-session-id',
+      privateKey: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      permissions: {},
+      isExpired: () => false,
+      remainingTime: () => 3600,
+    }),
+    getSessions: vi.fn().mockReturnValue([]),
+    revokeSession: vi.fn().mockReturnValue(true),
+    revokeAllSessions: vi.fn(),
   }),
 }))
 
@@ -40,6 +69,9 @@ import { batchTransactionsSchema, batchTransactionsHandler } from '../src/tools/
 import { freezeWalletSchema, freezeWalletHandler, unfreezeWalletSchema, unfreezeWalletHandler } from '../src/tools/freezeWallet.js'
 import { fetchWithPaymentSchema, fetchWithPaymentHandler } from '../src/tools/fetchWithPayment.js'
 import { subscribeWebhookSchema, subscribeWebhookHandler, removeListenersSchema, removeListenersHandler } from '../src/tools/events.js'
+import { transactionHistorySchema, transactionHistoryHandler } from '../src/tools/transactionHistory.js'
+import { dryRunSchema, dryRunHandler } from '../src/tools/dryRun.js'
+import { createSessionSchema, createSessionHandler, listSessionsSchema, listSessionsHandler, revokeSessionSchema, revokeSessionHandler } from '../src/tools/sessions.js'
 
 // ── Helper: extract registered tools from McpServer ──
 
@@ -56,10 +88,10 @@ describe('createBarzMcpServer', () => {
     expect(server).toBeDefined()
   })
 
-  it('registers 11 tools', () => {
+  it('registers 16 tools', () => {
     const server = createBarzMcpServer()
     const tools = getRegisteredTools(server)
-    expect(Object.keys(tools).length).toBe(11)
+    expect(Object.keys(tools).length).toBe(16)
   })
 
   it('registers expected tool names', () => {
@@ -76,6 +108,11 @@ describe('createBarzMcpServer', () => {
     expect(names).toContain('freeze_wallet')
     expect(names).toContain('unfreeze_wallet')
     expect(names).toContain('fetch_with_payment')
+    expect(names).toContain('dry_run')
+    expect(names).toContain('transaction_history')
+    expect(names).toContain('create_session')
+    expect(names).toContain('list_sessions')
+    expect(names).toContain('revoke_session')
     expect(names).toContain('subscribe_webhook')
     expect(names).toContain('remove_listeners')
   })
@@ -135,6 +172,39 @@ describe('tool schemas', () => {
     expect(schema.safeParse({ url: 'https://example.com', method: 'POST' }).success).toBe(true)
     expect(schema.safeParse({ url: 'not-a-url' }).success).toBe(false)
     expect(schema.safeParse({}).success).toBe(false)
+  })
+
+  it('create_session requires expires_in', () => {
+    const schema = z.object(createSessionSchema)
+    expect(schema.safeParse({ expires_in: '24h' }).success).toBe(true)
+    expect(schema.safeParse({ expires_in: '1h', label: 'bot' }).success).toBe(true)
+    expect(schema.safeParse({}).success).toBe(false)
+  })
+
+  it('revoke_session requires session_id', () => {
+    const schema = z.object(revokeSessionSchema)
+    expect(schema.safeParse({ session_id: 'abc' }).success).toBe(true)
+    expect(schema.safeParse({}).success).toBe(false)
+  })
+
+  it('list_sessions accepts empty input', () => {
+    expect(z.object(listSessionsSchema).safeParse({}).success).toBe(true)
+  })
+
+  it('dry_run requires transactions array', () => {
+    const schema = z.object(dryRunSchema)
+    expect(schema.safeParse({ transactions: [{ to: '0xabc' }] }).success).toBe(true)
+    expect(schema.safeParse({ transactions: [{ to: '0xabc', amount: '0.1' }] }).success).toBe(true)
+    expect(schema.safeParse({ transactions: [] }).success).toBe(false)
+    expect(schema.safeParse({}).success).toBe(false)
+  })
+
+  it('transaction_history accepts optional params', () => {
+    const schema = z.object(transactionHistorySchema)
+    expect(schema.safeParse({}).success).toBe(true)
+    expect(schema.safeParse({ limit: 50 }).success).toBe(true)
+    expect(schema.safeParse({ limit: 50, offset: 10, start_block: '1000', end_block: '2000' }).success).toBe(true)
+    expect(schema.safeParse({ limit: 200 }).success).toBe(false)
   })
 
   it('subscribe_webhook requires event and url', () => {
@@ -204,6 +274,36 @@ describe('tools without wallet return error', () => {
     expect(result.content[0].text).toContain('No wallet created')
   })
 
+  it('createSessionHandler', async () => {
+    const result = await createSessionHandler(noAgent)({ expires_in: '1h' }, {})
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('No wallet created')
+  })
+
+  it('listSessionsHandler', async () => {
+    const result = await listSessionsHandler(noAgent)({}, {})
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('No wallet created')
+  })
+
+  it('revokeSessionHandler', async () => {
+    const result = await revokeSessionHandler(noAgent)({ session_id: 'test' }, {})
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('No wallet created')
+  })
+
+  it('dryRunHandler', async () => {
+    const result = await dryRunHandler(noAgent)({ transactions: [{ to: '0xabc' }] }, {})
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('No wallet created')
+  })
+
+  it('transactionHistoryHandler', async () => {
+    const result = await transactionHistoryHandler(noAgent)({}, {})
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('No wallet created')
+  })
+
   it('subscribeWebhookHandler', async () => {
     const result = await subscribeWebhookHandler(noAgent)({ event: 'incoming', url: 'https://example.com/hook' }, {})
     expect(result.isError).toBe(true)
@@ -245,6 +345,35 @@ describe('tools with wallet', () => {
       on: vi.fn().mockReturnValue(() => {}),
       onWebhook: vi.fn().mockReturnValue(() => {}),
       removeAllListeners: vi.fn(),
+      getTransactions: vi.fn().mockResolvedValue([{
+        hash: '0xtx1',
+        from: '0x1234567890abcdef1234567890abcdef12345678',
+        to: '0xrecipient',
+        value: 1000000000000000000n,
+        timestamp: 1700000000,
+        blockNumber: 12345n,
+        status: 'success',
+        direction: 'outgoing',
+        explorerUrl: 'https://sepolia.etherscan.io/tx/0xtx1',
+      }]),
+      dryRun: vi.fn().mockResolvedValue({
+        success: true,
+        gasEstimate: 100000n,
+        gasCostETH: '0.0001 ETH',
+        permissionCheck: { passed: true, violations: [] },
+      }),
+      createSession: vi.fn().mockReturnValue({
+        id: 'test-session-id',
+        privateKey: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        address: '0x1234567890abcdef1234567890abcdef12345678',
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+        permissions: {},
+        isExpired: () => false,
+        remainingTime: () => 3600,
+      }),
+      getSessions: vi.fn().mockReturnValue([]),
+      revokeSession: vi.fn().mockReturnValue(true),
+      revokeAllSessions: vi.fn(),
     }
   }
 
@@ -331,6 +460,51 @@ describe('tools with wallet', () => {
     expect(result.content[0].text).toContain('200')
     expect(result.content[0].text).toContain('response body')
     expect(mockAgent.fetchWithPayment).toHaveBeenCalled()
+  })
+
+  it('create_session calls agent.createSession', async () => {
+    const handler = createSessionHandler(() => mockAgent as never)
+    const result = await handler({ expires_in: '1h' }, {})
+
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0].text).toContain('Session created')
+    expect(result.content[0].text).toContain('test-session-id')
+    expect(mockAgent.createSession).toHaveBeenCalled()
+  })
+
+  it('list_sessions calls agent.getSessions', async () => {
+    const handler = listSessionsHandler(() => mockAgent as never)
+    const result = await handler({}, {})
+
+    expect(result.content[0].text).toContain('No sessions')
+    expect(mockAgent.getSessions).toHaveBeenCalled()
+  })
+
+  it('revoke_session calls agent.revokeSession', async () => {
+    const handler = revokeSessionHandler(() => mockAgent as never)
+    const result = await handler({ session_id: 'test-id' }, {})
+
+    expect(result.content[0].text).toContain('revoked')
+    expect(mockAgent.revokeSession).toHaveBeenCalledWith('test-id')
+  })
+
+  it('dry_run calls agent.dryRun', async () => {
+    const handler = dryRunHandler(() => mockAgent as never)
+    const result = await handler({ transactions: [{ to: '0xabc', amount: '0.1' }] }, {})
+
+    expect(result.content[0].text).toContain('Success: true')
+    expect(result.content[0].text).toContain('0.0001 ETH')
+    expect(mockAgent.dryRun).toHaveBeenCalled()
+  })
+
+  it('transaction_history calls agent.getTransactions', async () => {
+    const handler = transactionHistoryHandler(() => mockAgent as never)
+    const result = await handler({}, {})
+
+    expect(result.isError).toBeUndefined()
+    expect(result.content[0].text).toContain('1 transactions')
+    expect(result.content[0].text).toContain('OUT')
+    expect(mockAgent.getTransactions).toHaveBeenCalled()
   })
 
   it('subscribe_webhook calls agent.onWebhook', async () => {

@@ -2,7 +2,7 @@
   "name": "@barzkit/mcp",
   "version": "0.1.0",
   "type": "module",
-  "description": "MCP Server for self-custody AI agent wallets — 11 tools for Claude Desktop, Cursor, Windsurf, and VS Code Copilot",
+  "description": "MCP Server for self-custody AI agent wallets — 16 tools for Claude Desktop, Cursor, Windsurf, and VS Code Copilot",
   "main": "./dist/server.js",
   "types": "./dist/server.d.ts",
   "bin": {
